@@ -10,6 +10,14 @@
       {
         "source": "/users",
         "function": "app"
+      },
+      {
+        "source": "/user",
+        "function": "app"
+      },
+      {
+        "source": "/validateuser",
+        "function": "app"
       }
     ]
   },
