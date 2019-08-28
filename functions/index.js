@@ -1,8 +1,10 @@
 const functions = require('firebase-functions');
 const express = require('express');
 const firebase = require('firebase');
+const nodemailer = require('nodemailer');
 var app = express();
 var bodyParser = require('body-parser');
+var passwordgenerator = require('generate-password');
 
 app.use(bodyParser.json()); //need to parse HTTP request body
 
@@ -47,7 +49,7 @@ app.put('/user', function (req, res) {
 	var eMail = req.body.Email;
 	var firstName = req.body.FirstName;
 	var lastName = req.body.LastName;
-	var mobile = req.body.Mobile;
+	var mobile = req.body.Mobile;	
 	var password = req.body.Password;
 
 	var referencePath = '/Users/' + ((eMail.replace('.', '')).replace('@', '')) + '/';
@@ -69,16 +71,22 @@ app.post('/user', function (req, res) {
 	var firstName = req.body.FirstName;
 	var lastName = req.body.LastName;
 	var mobile = req.body.Mobile;
-	var password = req.body.Password;
+	var password = passwordgenerator.generate({
+		length: 10,
+		numbers: true
+	});
+	
 	var referencePath = '/Users/' + ((eMail.replace('.', '')).replace('@', '')) + '/';
 	var userReference = firebase.database().ref(referencePath);
 	userReference.update({ FirstName: firstName, LastName: lastName, Email: eMail, Password: password, Mobile: mobile },
 		function (error) {
 			if (error) {
-				res.send("Data could not be updated." + error);
+				console.log("Data could not be updated." + error);
 			}
 			else {
-				res.send("Data updated successfully.");
+				console.log("Data updated successfully.");
+				var emailBody = '<h1>Welcome '+ firstName +'</h1><b><h3>We are happy to have you with us.</h3></b><br /></br /> Your fandashtic username : ' + eMail + ', your temp Password : ' + password + '<br /><br /> Please click the following url and login to fandashtic.com <br /><br /> <a href="https://www.fandashtic.com"> https://www.fandashtic.com </a>';
+				sendemail(eMail, "Welcome email from fandashtic!", emailBody, emailBody);
 			}
 		});
 });
@@ -108,9 +116,59 @@ app.post('/validateuser', function (req, res) {
 });
 
 //Delete an instance
-app.delete('/', function (req, res) {
-	console.log("HTTP DELETE Request");
-	//todo
+app.post('/user/reset', function (req, res) {
+	console.log("Reset Password / Forget Password");
+	var username = req.body.UserName;
+	var referencePath = '/Users/' + ((username.replace('.', '')).replace('@', ''));
+	var userReference = firebase.database().ref(referencePath);
+	userReference.on("value",
+	function (snapshot) {
+		var user = snapshot.toJSON();
+		if (user !== null ){	
+			var password = passwordgenerator.generate({
+				length: 10,
+				numbers: true
+			});
+			var emailBody = '<h1>Welcome '+ user.FirstName +'</h1><b><h3>We are give you a new secure key to access fandashtic. This is a temp key. This key will have life on one day.</h3></b><br /></br /> Your fandashtic temp key : ' + password + '<br /><br /> Please click the following url and login to fandashtic.com <br /><br /> <a href="https://www.fandashtic.com"> https://www.fandashtic.com </a>';
+			sendemail(username, "Reset fandashtic Password", emailBody, emailBody);	
+		}
+	},
+	function (errorObject) {
+		console.log("The read failed: " + errorObject.code);
+		res.send("The read failed: " + errorObject.code);
+	});		
 });
+
+var sendemail= function(to, subject, html, body){
+	console.log(to);
+	console.log(subject);
+	console.log(html);
+	console.log(body);
+	let transporter = nodemailer.createTransport({
+		service: 'Gmail',
+		host: 'smtp.gmail.com',
+		port: 465,
+		secure: true,
+		auth: {
+			user: 'info.fandashtic@gmail.com',
+			pass: '%%f%H*t2PW6R'
+		}
+	});
+	let mailOptions = {
+		from: 'info.fandashtic@gmail.com', // sender address
+		to: to, // list of receivers
+		subject: subject, // Subject line
+		text: body, // plain text body
+		html: html // html body
+	};
+
+	transporter.sendMail(mailOptions, (error, info) => {
+		if (error) {
+			return console.log(error);
+		}
+		console.log('Message %s sent: %s', info.messageId, info.response);
+			res.render('index');
+		});
+};
 
 exports.app = functions.https.onRequest(app);
