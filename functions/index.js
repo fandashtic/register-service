@@ -22,16 +22,44 @@ var firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const dbRef = firebase.database().ref();
 
+app.use((req, res, next) => {
+	const token = req.headers.token;	
+    //res.append('Access-Control-Allow-Origin', ['*']);
+    //res.append('Access-Control-Allow-Methods', 'GET, POST, DELETE, PATCH, OPTIONS, PUT');
+	//res.append('Access-Control-Allow-Headers', 'Content-Type');
+	
+	if (token != null && token != undefined && token != '') {
+		if (token == 'sysauth') next();		
+		var status = false;
+		var ref = firebase.database().ref("/Users/");
+		ref.on("value",
+			function (snapshot) {				
+				snapshot.forEach(function (key, user) {
+					if (status == false) {
+						if (key.toJSON().token == token) {
+							status = true;
+							next();
+						}
+					}
+				});
+
+				ref.off("value");
+				if (status == false) {
+					res.status(401).send("Access denied. No token provided.");
+				}
+			});
+	}
+	else{
+		res.status(401).send("Access denied. No token provided.");								
+	}
+    
+});
+
 //Fetch instances
 app.get('/users', function (req, res) {
-
-	console.log("HTTP Get Request");
 	var userReference = firebase.database().ref("/Users/");
-
-	//Attach an asynchronous callback to read the data
 	userReference.on("value",
-		function (snapshot) {
-			console.log(snapshot.val());
+		function (snapshot) {			
 			res.json(snapshot.val());
 			userReference.off("value");
 		},
@@ -43,9 +71,6 @@ app.get('/users', function (req, res) {
 
 //Create new instance
 app.put('/user', function (req, res) {
-
-	console.log("HTTP Put Request");
-
 	var eMail = req.body.Email;
 	var firstName = req.body.FirstName;
 	var lastName = req.body.LastName;
@@ -95,24 +120,37 @@ app.post('/user', function (req, res) {
 app.post('/validateuser', function (req, res) {
 	var username = req.body.UserName;
 	var password = req.body.Password;
-	var referencePath = '/Users/' + ((username.replace('.', '')).replace('@', ''));
-	var userReference = firebase.database().ref(referencePath);
-	var status = false;
-	userReference.on("value",
-		function (snapshot) {
-			var user = snapshot.toJSON();
-			if (user !== null && user.Password) {
-				if (password === user.Password) {
-					status = true;
+	var status = false;	
+	if (username != null && username != undefined) {		
+		var referencePath = '/Users/'+ ((username.replace('.', '')).replace('@', '')) + '/';	
+		var userReference = firebase.database().ref(referencePath);		
+		userReference.on("value",
+			function (snapshot) {					
+				var user = snapshot.toJSON();				
+				if (user !== null && user.Password) {					
+					if (password === user.Password) {
+						status = true;
+						var token = passwordgenerator.generate({
+							length: 25,
+							numbers: true
+						});
+						//console.log(token);
+						userReference.update({
+							"token": token
+						  });
+					}
 				}
-			}
-			userReference.off("value");
-			res.send(status);
-		},
-		function (errorObject) {
-			console.log("The read failed: " + errorObject.code);
-			res.send("The read failed: " + errorObject.code);
-		});	
+				userReference.off("value");
+				res.send(status);
+			},
+			function (errorObject) {
+				console.log("The read failed: " + errorObject.code);
+				res.send("The read failed: " + errorObject.code);
+			});
+	}
+	else{
+		res.send(status);
+	}	
 });
 
 //Delete an instance
@@ -139,11 +177,7 @@ app.post('/user/reset', function (req, res) {
 	});		
 });
 
-var sendemail= function(to, subject, html, body){
-	console.log(to);
-	console.log(subject);
-	console.log(html);
-	console.log(body);
+var sendemail= function(to, subject, html, body){	
 	let transporter = nodemailer.createTransport({
 		service: 'Gmail',
 		host: 'smtp.gmail.com',

@@ -1,6 +1,6 @@
 {
   "name": "functions",
-  "description": "Cloud Functions for Firebase",
+  "description": "fandashtic register service",
   "scripts": {
     "lint": "eslint .",
     "serve": "firebase serve --only functions",
