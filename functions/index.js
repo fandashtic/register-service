@@ -1,13 +1,11 @@
-const functions = require('firebase-functions');
-const express = require('express');
-const firebase = require('firebase');
-const nodemailer = require('nodemailer');
-var app = express();
-var bodyParser = require('body-parser');
+const express = require('express'); // init node express
+const firebase = require('firebase'); // get firebase
+const functions = require('firebase-functions'); //get firebase functions
+const nodemailer = require('nodemailer'); // sent emails
+var bodyParser = require('body-parser'); // read request parameters
 var passwordgenerator = require('generate-password');
 
-app.use(bodyParser.json()); //need to parse HTTP request body
-
+// firebase config
 var firebaseConfig = {
 	apiKey: "AIzaSyAQLCpKGof7el_d9XS5iP3c2Zi7DXwKKiY",
 	authDomain: "e-commerce-f49e1.firebaseapp.com",
@@ -18,48 +16,54 @@ var firebaseConfig = {
 	appId: "1:336970934425:web:7caa3c1c4f02554b"
 };
 
+
+var app = express();
+app.use(bodyParser.json()); 
+
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const dbRef = firebase.database().ref();
 
+//site suth verification
 app.use((req, res, next) => {
-	const token = req.headers.token;	
-    //res.append('Access-Control-Allow-Origin', ['*']);
-    //res.append('Access-Control-Allow-Methods', 'GET, POST, DELETE, PATCH, OPTIONS, PUT');
+	const token = req.headers.Token;
+	//res.append('Access-Control-Allow-Origin', ['*']);
+	//res.append('Access-Control-Allow-Methods', 'GET, POST, DELETE, PATCH, OPTIONS, PUT');
 	//res.append('Access-Control-Allow-Headers', 'Content-Type');
-	
-	if (token != null && token != undefined && token != '') {
-		if (token == 'sysauth') next();		
+
+	if (token !== null && token !== undefined && token !== '') {
+		if (token === 'sysauth') return next();
 		var status = false;
 		var ref = firebase.database().ref("/Users/");
 		ref.on("value",
-			function (snapshot) {				
-				snapshot.forEach(function (key, user) {
-					if (status == false) {
-						if (key.toJSON().token == token) {
+			function (snapshot) {
+				snapshot.forEach(function (key) {
+					if (status === false) {
+						if (key.toJSON().Token === token) {
 							status = true;
-							next();
 						}
 					}
 				});
 
 				ref.off("value");
-				if (status == false) {
+				if (status === false) {
 					res.status(401).send("Access denied. No token provided.");
 				}
 			});
 	}
-	else{
-		res.status(401).send("Access denied. No token provided.");								
+	else {
+		res.status(401).send("Access denied. No token provided.");
 	}
-    
+	next();
 });
 
-//Fetch instances
+// User API functions Start
+
+//get all users
 app.get('/users', function (req, res) {
 	var userReference = firebase.database().ref("/Users/");
 	userReference.on("value",
-		function (snapshot) {			
+		function (snapshot) {
 			res.json(snapshot.val());
 			userReference.off("value");
 		},
@@ -69,12 +73,27 @@ app.get('/users', function (req, res) {
 		});
 });
 
-//Create new instance
+//get user by id
+app.get('/user', function (req, res) {
+	var userId = req.body.id;
+	var userReference = firebase.database().ref("/Users/" + userId);
+	userReference.on("value",
+		function (snapshot) {
+			res.json(snapshot.val());
+			userReference.off("value");
+		},
+		function (errorObject) {
+			console.log("The read failed: " + errorObject.code);
+			res.send("The read failed: " + errorObject.code);
+		});
+});
+
+//update user
 app.put('/user', function (req, res) {
 	var eMail = req.body.Email;
 	var firstName = req.body.FirstName;
 	var lastName = req.body.LastName;
-	var mobile = req.body.Mobile;	
+	var mobile = req.body.Mobile;
 	var password = req.body.Password;
 
 	var referencePath = '/Users/' + ((eMail.replace('.', '')).replace('@', '')) + '/';
@@ -90,7 +109,7 @@ app.put('/user', function (req, res) {
 		});
 });
 
-//Update existing instance
+//add user
 app.post('/user', function (req, res) {
 	var eMail = req.body.Email;
 	var firstName = req.body.FirstName;
@@ -100,7 +119,7 @@ app.post('/user', function (req, res) {
 		length: 10,
 		numbers: true
 	});
-	
+
 	var referencePath = '/Users/' + ((eMail.replace('.', '')).replace('@', '')) + '/';
 	var userReference = firebase.database().ref(referencePath);
 	userReference.update({ FirstName: firstName, LastName: lastName, Email: eMail, Password: password, Mobile: mobile },
@@ -110,34 +129,34 @@ app.post('/user', function (req, res) {
 			}
 			else {
 				console.log("Data updated successfully.");
-				var emailBody = '<h1>Welcome '+ firstName +'</h1><b><h3>We are happy to have you with us.</h3></b><br /></br /> Your fandashtic username : ' + eMail + ', your temp Password : ' + password + '<br /><br /> Please click the following url and login to fandashtic.com <br /><br /> <a href="https://www.fandashtic.com"> https://www.fandashtic.com </a>';
+				var emailBody = '<h1>Welcome ' + firstName + '</h1><b><h3>We are happy to have you with us.</h3></b><br /></br /> Your fandashtic username : ' + eMail + ', your temp Password : ' + password + '<br /><br /> Please click the following url and login to fandashtic.com <br /><br /> <a href="https://www.fandashtic.com"> https://www.fandashtic.com </a>';
 				sendemail(eMail, "Welcome email from fandashtic!", emailBody, emailBody);
 			}
 		});
 });
 
-//Fetch instances
+//validate user
 app.post('/validateuser', function (req, res) {
 	var username = req.body.UserName;
 	var password = req.body.Password;
-	var status = false;	
-	if (username != null && username != undefined) {		
-		var referencePath = '/Users/'+ ((username.replace('.', '')).replace('@', '')) + '/';	
-		var userReference = firebase.database().ref(referencePath);		
+	var status = false;
+	if (username !== null && username !== undefined) {
+		var referencePath = '/Users/' + ((username.replace('.', '')).replace('@', '')) + '/';
+		var userReference = firebase.database().ref(referencePath);
 		userReference.on("value",
-			function (snapshot) {					
-				var user = snapshot.toJSON();				
-				if (user !== null && user.Password) {					
+			function (snapshot) {
+				var user = snapshot.toJSON();
+				if (user !== null && user.Password) {
 					if (password === user.Password) {
 						status = true;
 						var token = passwordgenerator.generate({
 							length: 25,
 							numbers: true
 						});
-						//console.log(token);
+
 						userReference.update({
-							"token": token
-						  });
+							"Token": token
+						});
 					}
 				}
 				userReference.off("value");
@@ -148,36 +167,36 @@ app.post('/validateuser', function (req, res) {
 				res.send("The read failed: " + errorObject.code);
 			});
 	}
-	else{
+	else {
 		res.send(status);
-	}	
+	}
 });
 
-//Delete an instance
+//reset user password
 app.post('/user/reset', function (req, res) {
 	console.log("Reset Password / Forget Password");
 	var username = req.body.UserName;
 	var referencePath = '/Users/' + ((username.replace('.', '')).replace('@', ''));
 	var userReference = firebase.database().ref(referencePath);
 	userReference.on("value",
-	function (snapshot) {
-		var user = snapshot.toJSON();
-		if (user !== null ){	
-			var password = passwordgenerator.generate({
-				length: 10,
-				numbers: true
-			});
-			var emailBody = '<h1>Welcome '+ user.FirstName +'</h1><b><h3>We are give you a new secure key to access fandashtic. This is a temp key. This key will have life on one day.</h3></b><br /></br /> Your fandashtic temp key : ' + password + '<br /><br /> Please click the following url and login to fandashtic.com <br /><br /> <a href="https://www.fandashtic.com"> https://www.fandashtic.com </a>';
-			sendemail(username, "Reset fandashtic Password", emailBody, emailBody);	
-		}
-	},
-	function (errorObject) {
-		console.log("The read failed: " + errorObject.code);
-		res.send("The read failed: " + errorObject.code);
-	});		
+		function (snapshot) {
+			var user = snapshot.toJSON();
+			if (user !== null) {
+				var password = passwordgenerator.generate({
+					length: 10,
+					numbers: true
+				});
+				var emailBody = '<h1>Welcome ' + user.FirstName + '</h1><b><h3>We are give you a new secure key to access fandashtic. This is a temp key. This key will have life on one day.</h3></b><br /></br /> Your fandashtic temp key : ' + password + '<br /><br /> Please click the following url and login to fandashtic.com <br /><br /> <a href="https://www.fandashtic.com"> https://www.fandashtic.com </a>';
+				sendemail(username, "Reset fandashtic Password", emailBody, emailBody);
+			}
+		},
+		function (errorObject) {
+			console.log("The read failed: " + errorObject.code);
+			res.send("The read failed: " + errorObject.code);
+		});
 });
 
-var sendemail= function(to, subject, html, body){	
+var sendemail = function (to, subject, html, body) {
 	let transporter = nodemailer.createTransport({
 		service: 'Gmail',
 		host: 'smtp.gmail.com',
@@ -201,8 +220,10 @@ var sendemail= function(to, subject, html, body){
 			return console.log(error);
 		}
 		console.log('Message %s sent: %s', info.messageId, info.response);
-			res.render('index');
-		});
+		res.render('index');
+	});
 };
+
+// User API functions End
 
 exports.app = functions.https.onRequest(app);
